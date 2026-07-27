@@ -177,3 +177,38 @@ def send_wechat(config: dict, subject: str, body: str) -> bool:
 ## License
 
 MIT
+
+
+# SmartBuy 守护者
+
+AI反套路消费决策助手
+
+
+## 项目背景
+
+618、双11虚假促销问题
+
+
+## 核心功能
+
+1. 历史价格分析
+
+2. 虚假促销识别
+
+3. 营销话术检测
+
+4. AI购买建议
+
+
+## 技术架构
+
+Python
+Streamlit
+LLM
+价格采集
+规则引擎
+
+
+## Demo截图
+
+<img width="3104" height="1816" alt="image" src="https://github.com/user-attachments/assets/2f37c722-c255-4093-8d53-5282d42cccb0" />
