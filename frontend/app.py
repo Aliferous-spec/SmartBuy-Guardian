@@ -27,6 +27,7 @@ from datetime import datetime, timedelta
 from analysis.report_builder import build_report
 from ai.advisor import get_advice
 from frontend.demo_data import DEMO_CASES
+from frontend.search import build_search_case
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Page config
@@ -36,6 +37,7 @@ st.set_page_config(
     page_title="SmartBuy Guardian",
     page_icon="🛡️",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -87,7 +89,7 @@ def _inject_css():
     }
 
     /* ═══════════════════════════════════════════════════════════════════
-       CARDS — Equal height via flex + dark backgrounds
+       CARDS — Equal height via flex + enhanced shadows & hover
        ═══════════════════════════════════════════════════════════════════ */
 
     /* Make the 3-column result row flex so cards fill height equally */
@@ -104,11 +106,17 @@ def _inject_css():
     .sb-card {
         background: #161920;
         border: 1px solid #262A33;
-        border-radius: 14px;
-        padding: 26px 22px 20px 22px;
+        border-radius: 16px;
+        padding: 28px 24px 22px 24px;
         margin-bottom: 8px;
         height: 100%;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.30);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.40), 0 1px 3px rgba(99,179,237,0.04);
+        transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+    }
+    .sb-card:hover {
+        box-shadow: 0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(99,179,237,0.08);
+        border-color: #303540;
+        transform: translateY(-2px);
     }
     .sb-card-red    { border-left: 4px solid #FC8181; }
     .sb-card-yellow { border-left: 4px solid #F6AD55; }
@@ -124,19 +132,27 @@ def _inject_css():
     }
 
     /* ═══════════════════════════════════════════════════════════════════
-       HERO — Larger, bolder, gradient-text feel
+       HERO — gradient text with subtle breathing glow
        ═══════════════════════════════════════════════════════════════════ */
+    @keyframes sb-hero-breathe {
+        0%, 100% { filter: drop-shadow(0 0 16px rgba(99,179,237,0.30)); }
+        50%      { filter: drop-shadow(0 0 32px rgba(99,179,237,0.55)); }
+    }
     .sb-hero {
         text-align: center;
         padding: 36px 0 12px 0;
     }
     .sb-hero h1 {
-        font-size: 2.8em;
+        font-size: 3.0em;
         font-weight: 900;
         margin-bottom: 6px;
-        color: #FFFFFF;
-        letter-spacing: 3px;
-        text-shadow: 0 0 40px rgba(99,179,237,0.35);
+        letter-spacing: 4px;
+        background: linear-gradient(135deg, #63B3ED 0%, #68D391 50%, #63B3ED 100%);
+        background-size: 200% 200%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: sb-hero-breathe 5s ease-in-out infinite;
     }
     .sb-hero .subtitle {
         font-size: 1.25em;
@@ -151,10 +167,10 @@ def _inject_css():
     }
 
     /* ═══════════════════════════════════════════════════════════════════
-       RISK SCORE — big number
+       RISK SCORE — big number with dynamic glow
        ═══════════════════════════════════════════════════════════════════ */
     .sb-risk-score {
-        font-size: 4.0em;
+        font-size: 4.2em;
         font-weight: 900;
         text-align: center;
         line-height: 1.05;
@@ -168,15 +184,21 @@ def _inject_css():
     }
 
     /* ═══════════════════════════════════════════════════════════════════
-       VERDICT BADGE — high-contrast pill
+       VERDICT BADGE — larger, hover-lift effect for projection
        ═══════════════════════════════════════════════════════════════════ */
     .sb-verdict {
-        font-size: 1.25em;
+        font-size: 1.35em;
         font-weight: 700;
         text-align: center;
-        padding: 12px 24px;
-        border-radius: 10px;
-        margin: 10px 0;
+        padding: 14px 28px;
+        border-radius: 12px;
+        margin: 12px 0;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+        cursor: default;
+    }
+    .sb-verdict:hover {
+        transform: scale(1.04);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.45);
     }
     .sb-verdict-buy      { background: #1C3D2B; color: #68D391; border: 1px solid #2F5A3C; }
     .sb-verdict-wait     { background: #3D2E0A; color: #F6AD55; border: 1px solid #5A4210; }
@@ -212,6 +234,25 @@ def _inject_css():
     }
     .sb-advice-block strong {
         color: #FFFFFF;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       DECISION BASIS — checklist items
+       ═══════════════════════════════════════════════════════════════════ */
+    .sb-basis-item {
+        padding: 6px 12px;
+        margin: 3px 0;
+        background: #1A1E28;
+        border-radius: 6px;
+        font-size: 0.88em;
+        color: #A0AEC0;
+        border: 1px solid #222733;
+        line-height: 1.5;
+    }
+    .sb-basis-item.sb-basis-warn {
+        color: #F6AD55;
+        border-color: #3D2E0A;
+        background: #221C0E;
     }
 
     /* Confidence bar */
@@ -320,6 +361,31 @@ def _inject_css():
         background: #1A1D24 !important;
         color: #CBD5E0 !important;
     }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       SEARCH — not-found message
+       ═══════════════════════════════════════════════════════════════════ */
+    .sb-not-found {
+        background: #161920;
+        border: 1px solid #262A33;
+        border-radius: 14px;
+        padding: 50px 30px;
+        text-align: center;
+        margin: 16px 0;
+    }
+    .sb-not-found .not-found-icon {
+        font-size: 2.8em;
+        margin-bottom: 14px;
+    }
+    .sb-not-found p {
+        color: #8899AA !important;
+        font-size: 1.05em;
+        line-height: 1.9;
+        margin: 0;
+    }
+    .sb-not-found strong {
+        color: #CBD5E0 !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -328,55 +394,79 @@ def _inject_css():
 # Helper: mini price chart (unchanged from original)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _draw_mini_chart(prices, current, height=2.0):
-    """Render a small inline price history chart (dark theme)."""
+def _draw_mini_chart(prices, current, height=2.2):
+    """Render a tech-style price history chart with gradient fill and glow markers."""
     n = len(prices)
     dates = [datetime.now() - timedelta(days=n - i) for i in range(n)]
 
     BG = "#0B0D12"
-    FG = "#CBD5E0"
-    GRID = "#1E2230"
+    FG = "#A0AEC0"
+    GRID = "#1A1E28"
     LINE = "#63B3ED"
-    FILL = "#63B3ED"
+    GLOW = "#63B3ED"
     RED = "#FC8181"
     GREEN = "#68D391"
+    PRICE_MIN = min(prices)
 
     fig, ax = plt.subplots(figsize=(7, height))
     fig.patch.set_facecolor(BG)
     ax.set_facecolor(BG)
 
-    ax.fill_between(dates, prices, min(prices) * 0.98,
-                    alpha=0.10, color=FILL)
-    ax.plot(dates, prices, color=LINE, linewidth=2.0,
-            marker="o", markersize=3, markerfacecolor=BG,
-            markeredgewidth=1.2, markeredgecolor=LINE)
+    # ── Gradient fill: darker at bottom, more visible near the line ──────
+    grad_alphas = np.linspace(0.04, 0.20, len(prices))
+    for i in range(len(prices) - 1):
+        ax.fill_between(
+            dates[i:i+2], prices[i:i+2], PRICE_MIN * 0.98,
+            alpha=float(grad_alphas[i]), color=LINE, linewidth=0,
+        )
 
-    ax.scatter([dates[-1]], [current], color=RED, s=70, zorder=10,
-               edgecolors=BG, linewidth=2)
+    # ── Glow underlay (wider, more transparent line for glow effect) ────
+    ax.plot(dates, prices, color=GLOW, linewidth=5.0, alpha=0.12, solid_capstyle="round")
+
+    # ── Main price line ──────────────────────────────────────────────────
+    ax.plot(dates, prices, color=LINE, linewidth=2.2,
+            marker="o", markersize=3.5, markerfacecolor=BG,
+            markeredgewidth=1.3, markeredgecolor=LINE,
+            solid_capstyle="round", solid_joinstyle="round")
+
+    # ── Latest price: prominent glow marker ──────────────────────────────
+    ax.scatter([dates[-1]], [current], color=RED, s=110, zorder=10,
+               edgecolors="#FFFFFF", linewidth=1.8)
+    # Outer glow ring
+    ax.scatter([dates[-1]], [current], color=RED, s=220, zorder=9,
+               edgecolors="none", alpha=0.18)
     ax.annotate(f"¥{current:.0f}", xy=(dates[-1], current),
-                xytext=(6, 0), textcoords="offset points",
-                fontsize=9, color=RED, fontweight="bold", va="center")
+                xytext=(10, 0), textcoords="offset points",
+                fontsize=9.5, color="#FFFFFF", fontweight="bold", va="center",
+                bbox=dict(boxstyle="round,pad=0.3", fc="#FC8181", ec="none", alpha=0.85))
 
+    # ── Historical low marker ────────────────────────────────────────────
     min_idx = int(np.argmin(prices))
-    ax.scatter([dates[min_idx]], [prices[min_idx]], color=GREEN, s=45, zorder=10)
+    ax.scatter([dates[min_idx]], [prices[min_idx]], color=GREEN, s=70, zorder=10,
+               edgecolors=BG, linewidth=1.5)
     ax.annotate(f"最低 ¥{prices[min_idx]:.0f}", xy=(dates[min_idx], prices[min_idx]),
-                xytext=(0, -16), textcoords="offset points",
-                fontsize=7.5, color=GREEN, ha="center", va="top")
+                xytext=(0, -18), textcoords="offset points",
+                fontsize=8, color=GREEN, ha="center", va="top", fontweight="bold")
 
+    # ── Axes & grid ──────────────────────────────────────────────────────
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
     ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("¥%.0f"))
-    ax.tick_params(colors=FG, labelsize=8)
-    ax.grid(True, axis="y", alpha=0.25, color=GRID)
+    ax.tick_params(colors=FG, labelsize=8.5)
+    ax.grid(True, axis="y", alpha=0.18, color=GRID, linewidth=0.8)
+    ax.grid(True, axis="x", alpha=0.08, color=GRID, linewidth=0.5)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.spines["left"].set_color(GRID)
     ax.spines["bottom"].set_color(GRID)
+    ax.spines["left"].set_linewidth(0.8)
+    ax.spines["bottom"].set_linewidth(0.8)
 
-    y_min, y_max = min(prices), max(prices)
+    # ── Y-range with padding ─────────────────────────────────────────────
+    y_min, y_max = PRICE_MIN, max(prices)
     y_pad = (y_max - y_min) * 0.35
     ax.set_ylim(y_min - y_pad, y_max + y_pad)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=0.5)
     st.pyplot(fig)
     plt.close(fig)
 
@@ -385,7 +475,7 @@ def _draw_mini_chart(prices, current, height=2.0):
 # Helper: run analysis (cached so auto-analysis doesn't re-run on every render)
 # ══════════════════════════════════════════════════════════════════════════════
 
-@st.cache(suppress_st_warning=True)
+@st.cache_data
 def _run_analysis(product_name, current_price, original_price, history_json, marketing_text):
     """Run analysis engine and return (report, advice). Cached for performance."""
     import json
@@ -449,7 +539,7 @@ def _render_result(selected_case, report, advice):
         st.markdown(f"""
         <div class="sb-card {card_class}">
             <div class="sb-card-title">{risk_emoji} 风险评估</div>
-            <div class="sb-risk-score" style="color:{risk_color}">{pa['risk_score']:.0f}<span style="font-size:0.35em;color:#5A6070"> /100</span></div>
+            <div class="sb-risk-score" style="color:{risk_color}; text-shadow: 0 0 24px {risk_color}44, 0 0 48px {risk_color}22;">{pa['risk_score']:.0f}<span style="font-size:0.35em;color:#5A6070"> /100</span></div>
             <div class="sb-risk-score-label">综合风险评分</div>
             <hr style="margin:12px 0;border-color:#262A33">
             <div class="sb-verdict {_verdict_style(advice.get('verdict',''))}">{advice.get('verdict', '—')}</div>
@@ -554,6 +644,58 @@ def _render_result(selected_case, report, advice):
             for rp in risk_points[:4]:
                 st.markdown(f'<div class="sb-risk-point">⚠ {rp}</div>', unsafe_allow_html=True)
 
+        # ── Decision basis ───────────────────────────────────────────────
+        st.markdown("**📊 决策依据**")
+        dev_low = bd.get('deviation_from_low_pct', 0)
+        trend_pct_val = bd.get('trend_pct', 0)
+        mkt_categories = ma.get("categories", {})
+
+        basis_items = []
+
+        # Price vs historical low
+        if dev_low <= 5:
+            basis_items.append(("good", f"✓ 当前价格接近历史最低价（仅高 {dev_low}%）"))
+        elif dev_low <= 15:
+            basis_items.append(("neutral", f"△ 当前价格比历史最低价高 {dev_low}%"))
+        else:
+            basis_items.append(("warn", f"⚠ 当前价格高于历史最低价 {dev_low}%"))
+
+        # Price vs historical average
+        avg_price = bd.get('historical_average', 0)
+        cur_price = selected_case.get('current_price', 0)
+        if cur_price < avg_price:
+            pct_below_avg = round((avg_price - cur_price) / avg_price * 100, 1)
+            basis_items.append(("good", f"✓ 当前价格低于历史均价 {pct_below_avg}%"))
+        else:
+            pct_above_avg = round((cur_price - avg_price) / avg_price * 100, 1)
+            basis_items.append(("warn", f"⚠ 当前价格高于历史均价 {pct_above_avg}%"))
+
+        # Fake original price
+        if bd.get("fake_original_price"):
+            basis_items.append(("warn", f"⚠ 标称原价虚高（{bd.get('fake_original_detail', '')}）"))
+
+        # Marketing risk categories detected
+        detected_cats = []
+        for cat_name, cd in mkt_categories.items():
+            if cd.get("hits"):
+                detected_cats.append(cat_name)
+        if detected_cats:
+            basis_items.append(("neutral", f"△ 检测到营销话术：{'、'.join(detected_cats)}"))
+        else:
+            basis_items.append(("good", "✓ 未检测到明显营销话术风险"))
+
+        # Trend
+        if trend_pct_val < -3:
+            basis_items.append(("good", f"✓ 近期价格呈下降趋势（{trend_pct_val:+.1f}%）"))
+        elif trend_pct_val > 3:
+            basis_items.append(("warn", f"⚠ 近期价格呈上涨趋势（{trend_pct_val:+.1f}%）"))
+        else:
+            basis_items.append(("neutral", f"△ 近期价格平稳（{trend_pct_val:+.1f}%）"))
+
+        for item_type, item_text in basis_items:
+            css_class = "sb-basis-item sb-basis-warn" if item_type == "warn" else "sb-basis-item"
+            st.markdown(f'<div class="{css_class}">{item_text}</div>', unsafe_allow_html=True)
+
         # ── Confidence bar ───────────────────────────────────────────────
         conf = advice.get("confidence", 0)
         conf_pct = int(conf * 100)
@@ -588,16 +730,41 @@ _inject_css()
 # ── Session state init ────────────────────────────────────────────────────────
 if "selected_case_idx" not in st.session_state:
     st.session_state.selected_case_idx = 0  # default: first case
+if "search_input" not in st.session_state:
+    st.session_state.search_input = ""
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 
 with st.sidebar:
+    # ══════════════════════════════════════════════════════════════════════
+    # Search input
+    # ══════════════════════════════════════════════════════════════════════
+    st.markdown("### 🔍 商品搜索")
+    search_input = st.text_input(
+        "请输入商品名称或链接",
+        key="search_input",
+        placeholder="例如：蓝牙耳机、空气炸锅...",
+    )
+    st.caption("输入商品名称关键词，自动匹配已有数据")
+
+    # Compute search result (simple keyword matching, fast enough for live update)
+    _search_query = search_input.strip() if search_input else ""
+    _search_case = build_search_case(_search_query) if _search_query else None
+
+    st.markdown("---")
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Demo cases
+    # ══════════════════════════════════════════════════════════════════════
     st.markdown("### 📋 Demo 案例")
 
+    # Track previous selection to detect user clicks (avoids on_change render issues)
+    if "prev_case_idx" not in st.session_state:
+        st.session_state.prev_case_idx = 0
+
     # Case selector as radio buttons
-    case_names = [c["name"] for c in DEMO_CASES]
     case_labels = [
         f"{'🟢' if c['expectation'].startswith('低风险') else '🔴' if c['expectation'].startswith('高风险') else '🟡'} {c['name']}"
         for c in DEMO_CASES
@@ -608,6 +775,12 @@ with st.sidebar:
         format_func=lambda i: case_labels[i],
         key="case_radio",
     )
+
+    # Clear search when user switches demo case
+    if selected_idx != st.session_state.prev_case_idx:
+        st.session_state.search_input = ""
+        st.session_state.prev_case_idx = selected_idx
+
     st.session_state.selected_case_idx = selected_idx
 
     st.markdown("---")
@@ -644,7 +817,7 @@ with st.sidebar:
                         "history_prices": hist_prices,
                     }
                     st.session_state.manual_mode = True
-                    st.experimental_rerun()
+                    st.rerun()
 
     st.markdown("---")
     st.caption("🛡️ SmartBuy Guardian\n息壤杯 OPC 创新大赛")
@@ -661,46 +834,72 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Determine which case to show
+# Determine which case to show (priority: search > manual > demo case)
 manual_mode = st.session_state.get("manual_mode", False)
-active_case = st.session_state.get("manual_data") if manual_mode else DEMO_CASES[st.session_state.selected_case_idx]
+_has_search = bool(_search_query)
+_search_found = _search_case is not None
 
-# ══════════════════════════════════════════════════════════════════════════════
-# RUN ANALYSIS (auto for cases, triggered for manual)
-# ══════════════════════════════════════════════════════════════════════════════
-
-import json
-
-hist_json = json.dumps(active_case["history_prices"])
-orig_price = active_case.get("original_price")
-
-with st.spinner("正在分析..."):
-    report, advice = _run_analysis(
-        active_case["product_name"],
-        active_case["current_price"],
-        orig_price,
-        hist_json,
-        active_case["marketing_text"],
-    )
-
-# ══════════════════════════════════════════════════════════════════════════════
-# RESULTS
-# ══════════════════════════════════════════════════════════════════════════════
-
-st.markdown("---")
-
-# Product name label
-product_label = active_case.get("product_name", active_case.get("name", ""))
-if manual_mode:
-    st.caption(f"📦 当前分析: **{product_label}** · 手动输入模式")
+if _has_search and _search_found:
+    active_case = _search_case
+    display_mode = "search"
+elif manual_mode:
+    active_case = st.session_state.get("manual_data")
+    display_mode = "manual"
 else:
-    st.caption(f"📦 当前分析: **{product_label}**")
+    active_case = DEMO_CASES[st.session_state.selected_case_idx]
+    display_mode = "demo"
 
-_render_result(active_case, report, advice)
+# ══════════════════════════════════════════════════════════════════════════════
+# RESULT AREA — stable container avoids DOM reconciliation errors
+# ══════════════════════════════════════════════════════════════════════════════
 
-# Reset manual mode
-if manual_mode:
-    st.session_state.manual_mode = False
+result_area = st.empty()
+
+if _has_search and not _search_found:
+    # ── Not found message ─────────────────────────────────────────────────
+    with result_area.container():
+        st.markdown("""
+        <div class="sb-not-found">
+            <div class="not-found-icon">📭</div>
+            <p>该商品暂无历史价格数据。</p>
+            <p>系统需要持续追踪 <strong>7-30</strong> 天后，</p>
+            <p>才能提供可靠价格诚信分析。</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+else:
+    # ── Run analysis + render results ─────────────────────────────────────
+    import json
+
+    hist_json = json.dumps(active_case["history_prices"])
+    orig_price = active_case.get("original_price")
+
+    with st.spinner("正在分析..."):
+        report, advice = _run_analysis(
+            active_case["product_name"],
+            active_case["current_price"],
+            orig_price,
+            hist_json,
+            active_case["marketing_text"],
+        )
+
+    with result_area.container():
+        st.markdown("---")
+
+        # Product name label
+        product_label = active_case.get("product_name", active_case.get("name", ""))
+        if display_mode == "search":
+            st.caption(f"🔍 搜索结果: **{product_label}**")
+        elif display_mode == "manual":
+            st.caption(f"📦 当前分析: **{product_label}** · 手动输入模式")
+        else:
+            st.caption(f"📦 当前分析: **{product_label}**")
+
+        _render_result(active_case, report, advice)
+
+    # Reset manual mode
+    if manual_mode:
+        st.session_state.manual_mode = False
 
 # ══════════════════════════════════════════════════════════════════════════════
 # FOOTER
