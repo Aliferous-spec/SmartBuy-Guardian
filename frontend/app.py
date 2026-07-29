@@ -730,7 +730,17 @@ _inject_css()
 # ── Session state init ────────────────────────────────────────────────────────
 if "selected_case_idx" not in st.session_state:
     st.session_state.selected_case_idx = 0  # default: first case
-if "search_input" not in st.session_state:
+
+# Deferred clear flag: set by the case-switch block below (after widgets are
+# already instantiated), consumed here on the *next* script rerun, before the
+# search_input widget is created.  This avoids StreamlitAPIException:
+# "cannot modify a keyed widget after instantiation".
+if "should_clear_search" not in st.session_state:
+    st.session_state.should_clear_search = False
+if st.session_state.should_clear_search:
+    st.session_state.search_input = ""
+    st.session_state.should_clear_search = False
+elif "search_input" not in st.session_state:
     st.session_state.search_input = ""
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -776,9 +786,11 @@ with st.sidebar:
         key="case_radio",
     )
 
-    # Clear search when user switches demo case
+    # Defer clearing to next rerun: setting search_input here would raise
+    # StreamlitAPIException because the text_input widget with key="search_input"
+    # was already instantiated above.  The flag is consumed in the init block.
     if selected_idx != st.session_state.prev_case_idx:
-        st.session_state.search_input = ""
+        st.session_state.should_clear_search = True
         st.session_state.prev_case_idx = selected_idx
 
     st.session_state.selected_case_idx = selected_idx
