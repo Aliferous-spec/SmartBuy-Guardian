@@ -1,214 +1,89 @@
-# 🔍 Price Monitor
+# SmartBuy 守护者（SmartBuy Guardian）
 
-一个轻量级 Python 价格监控工具 — 自动抓取商品页面、记录价格历史、在降价时发送通知。
+**AI 反套路消费决策助手 —— 让每一次购物决策都有数据依据**
 
-## 📸 Demo 演示
+> 参赛赛道：息壤杯全国人工智能OPC创新大赛 · 惠民产品创新赛道 · AI+文娱与生活
 
-**一键验证三大核心模块，无需配置即可预览完整工作流：**
-
-![Feature Demo](demo.gif)
-
-> `python demo.py` → 测试 scraper / storage / notifier  →  `python visualization.py --demo` → 生成价格走势图
-
-## 架构
-
-```
-price-monitor/
-├── main.py             # 入口：配置加载 + 主循环
-├── scraper.py          # 网页抓取 & 价格解析
-├── storage.py          # 数据持久化 & 历史查询
-├── notifier.py         # 通知渠道（邮件 / Telegram）
-├── visualization.py    # 价格走势可视化（matplotlib）
-├── demo.py             # 一键验证三个模块是否正常
-├── config.example.py   # 配置文件模板
-└── requirements.txt    # 依赖
-```
-
-三个核心模块各司其职：
-
-| 模块 | 职责 |
-|------|------|
-| `scraper.py` | HTTP 请求（含重试）、CSS 选择器解析、多地区价格格式归一化 |
-| `storage.py` | JSON-lines 持久化、历史最低价查询、降价检测 |
-| `notifier.py` | 可插拔的通知渠道（已内置 Email + Telegram），注册即用 |
-| `visualization.py` | matplotlib 价格走势图，支持 demo 模式和历史数据绘图 |
-
-## 运行效果
-
-```terminal
-$ python demo.py
-
-============================================================
-  1. SCRAPER — 测试价格提取
-============================================================
-  ✓  '$19.99'             →      19.99  (expected 19.99)
-  ✓  '1.299,99 €'         →    1299.99  (expected 1299.99)
-  ✓  '¥ 299.00'           →     299.00  (expected 299.0)
-  ✓  '1,999.99'           →    1999.99  (expected 1999.99)
-
-  → 从 HTML 提取价格: ¥199.99
-
-============================================================
-  2. STORAGE — 测试数据持久化
-============================================================
-  已存储 3 条价格记录:
-    2026-07-02T09:30:00  ¥259.00
-    2026-07-02T09:30:00  ¥249.00
-    2026-07-02T09:30:00  ¥239.00
-
-  📉 历史最低: ¥239.00
-  📉 价格下降检测 (¥229 vs 上次 ¥239.0): True
-
-============================================================
-  3. NOTIFIER — 已注册的通知渠道
-============================================================
-  🔔 email
-  🔔 telegram
-
-============================================================
-  ✅ 三大模块就绪: scraper · storage · notifier
-============================================================
-```
-
-## 价格走势可视化
-
-`visualization.py` 用 matplotlib 将价格历史渲染为折线图，无需真实爬虫数据即可预览效果：
-
-```bash
-# 生成演示图表（30 天模拟数据）
-python visualization.py --demo
-
-# 从真实历史数据生成
-python visualization.py --file price_history.jsonl
-```
-
-![价格走势图](price_chart.png)
-
-图表包含：日价格折线、7 日均价参考线、最低/当前价格标注、显著降价百分比标记。
-
-## 快速开始
-
-### 1. 安装依赖
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. 创建配置文件
-
-```bash
-cp config.example.py config.py
-```
-
-编辑 `config.py`，至少填写两项：
-
-```python
-TARGET_URL   = "https://item.jd.com/100012345678.html"   # 商品链接
-CSS_SELECTOR = ".price-box .price"                       # 价格元素的 CSS 选择器
-```
-
-### 3. 验证环境
-
-```bash
-python demo.py
-```
-
-全部 ✓ 即可进入下一步。
-
-### 4. 启动监控
-
-```bash
-python main.py
-```
-
-程序会按 `CHECK_INTERVAL`（默认 3600 秒）循环检查价格，并在满足条件时发送通知。
-
-## 配置说明
-
-| 配置项 | 类型 | 说明 |
-|--------|------|------|
-| `TARGET_URL` | str | **必填** — 商品页面 URL |
-| `CSS_SELECTOR` | str | **必填** — 价格元素的 CSS 选择器 |
-| `PRICE_REGEX` | str | 可选 — 用正则从元素文本中提取数字 |
-| `CHECK_INTERVAL` | int | 检查间隔（秒），默认 3600 |
-| `PRICE_THRESHOLD` | float | 价格阈值，低于此值触发通知 |
-| `HISTORY_FILE` | str | 历史记录文件路径，默认 `price_history.jsonl` |
-| `EMAIL_RECIPIENT` | str | 邮件接收地址 |
-| `SMTP_SERVER` | str | SMTP 服务器地址 |
-| `SMTP_PORT` | int | SMTP 端口 |
-| `SMTP_USER` | str | SMTP 登录用户名 |
-| `SMTP_PASSWORD` | str | SMTP 密码（Gmail 需应用专用密码） |
-| `TELEGRAM_BOT_TOKEN` | str | Telegram Bot Token |
-| `TELEGRAM_CHAT_ID` | str | Telegram 对话 ID |
-
-> **提示**：也可以使用 `.env` 文件配置，环境变量优先级高于 `config.py`。
-
-## 触发通知的条件
-
-以下任一条件满足时，程序会通过已配置的所有渠道发送通知：
-
-1. **价格跌破阈值** — 当前价格 ≤ `PRICE_THRESHOLD`
-2. **价格较上次下降** — 当前价格 < 历史记录中最近一次价格
-
-## 历史记录
-
-价格记录存储在 JSON-lines 文件中（默认 `price_history.jsonl`），每行一条：
-
-```json
-{"timestamp": "2026-07-02T09:30:00+00:00", "url": "https://...", "price": 239.0, "currency": "CNY"}
-```
-
-可以直接用文本编辑器查看，或用 `storage.load_history()` 在代码中读取。
-
-## 扩展通知渠道
-
-`notifier.py` 使用注册器模式，添加新渠道只需在模块中定义一个函数并注册：
-
-```python
-from notifier import register
-
-@register("wechat")
-def send_wechat(config: dict, subject: str, body: str) -> bool:
-    # 你的企业微信 / Server 酱 逻辑
-    ...
-    return True
-```
-
-## License
-
-MIT
-
-
-# SmartBuy 守护者
-
-AI反套路消费决策助手
-
+---
 
 ## 项目背景
 
-618、双11虚假促销问题
+每逢618、双11这类电商大促，"先涨价再打折"式的虚假促销屡见不鲜。消费者面对满屏的"限时秒杀""历史最低价"等营销话术，往往缺乏客观数据支撑，难以判断这个"优惠"是否真实。
 
+据媒体和消费者协会多次曝光，此类价格套路已成为影响消费者权益的常见问题。SmartBuy 守护者希望用AI技术，把"判断的权力"交还给消费者。
 
 ## 核心功能
 
-1. 历史价格分析
+### 1. 价格诚信检测（规则引擎）
+基于商品历史价格数据（历史最低价、历史均价、历史最高价），自动计算当前价格与历史真实水平的偏离程度，生成量化的"综合风险评分"（0-100分），并给出直观的风险等级：
+- 🟢 真实优惠
+- 🟡 普通优惠
+- 🔴 疑似虚假促销
 
-2. 虚假促销识别
+### 2. 营销话术风险分析（关键词库）
+识别商品页面/描述中的常见营销诱导话术（如"限时""仅剩最后X件""秒杀"等稀缺性/紧迫性话术），提示消费者理性看待此类营销语言，避免被话术裹挟做出冲动决策。
 
-3. 营销话术检测
+### 3. AI 购买建议（LLM）
+结合价格诚信检测结果和营销话术风险，通过大语言模型生成简洁、客观、站在消费者立场的自然语言购买建议，包含明确结论、判断依据和置信度。
 
-4. AI购买建议
-
+### 4. 商品搜索匹配
+支持输入商品名称/关键词，自动匹配系统已追踪的历史价格数据库，进行完整分析；对暂未收录的商品，给出诚实友好的提示，不做无依据的臆测判断。
 
 ## 技术架构
+数据采集层（爬虫）
+↓
+历史价格数据库（价格记录、促销标签）
+↓
+┌─────────────────┬──────────────────┐
+│ 规则引擎 │ 营销话术分析 │
+│ （价格诚信检测） │ （关键词库匹配） │
+└─────────────────┴──────────────────┘
+↓
+LLM 分析层（生成自然语言购买建议）
+↓
+Streamlit 前端展示层
+**技术栈**：Python · Streamlit · 大语言模型API · requests/BeautifulSoup（数据采集）· matplotlib/内置图表（价格趋势可视化）
 
-Python
-Streamlit
-LLM
-价格采集
-规则引擎
+## 与市面同类产品的差异
+
+市面上已有"什么值得买"等比价、历史价格追踪工具，但它们通常只提供**原始数据**（历史价格曲线），需要用户自行判断。SmartBuy 守护者的核心差异在于：
+
+- 不止呈现数据，更**直接给出可理解的风险结论和购买建议**
+- 独有的**营销话术风险识别**模块，主流比价工具普遍缺失
+- 面向"消费者决策辅助"设计，而非单纯的"比价查询"工具
+
+## Demo 演示
+<img width="3104" height="1816" alt="5a68bf4f4b15afc0bedfa12ff6b6f473" src="https://github.com/user-attachments/assets/96d3fc51-d310-495b-84ea-a7c2c6068068" />
+<img width="2616" height="3040" alt="54adfec995d9f5c4b9cd1aeebbe2266c" src="https://github.com/user-attachments/assets/66e043f6-949f-427e-a192-0996d095ce9a" />
 
 
-## Demo截图
+## 本地运行方式
 
-<img width="3104" height="1816" alt="image" src="https://github.com/user-attachments/assets/2f37c722-c255-4093-8d53-5282d42cccb0" />
+```bash
+git clone https://github.com/Aliferous-spec/smartbuy-guardian.git
+cd smartbuy-guardian
+pip install -r requirements.txt
+streamlit run frontend/app.py
+```
+
+需在 `.env` 文件中配置 `LLM_API_KEY` 等环境变量（参考 `config.example.py`）。
+
+## 项目团队
+
+| 角色 | 姓名 | 分工 |
+|---|---|---|
+| 队长/技术负责人 | [刘欣然] | 核心算法开发、AI集成、Demo实现 |
+| 队员/产品负责人 | [张婷婷] | 产品设计、PPT、演示材料 |
+
+所属学校：广州应用科技学院
+
+## 未来规划
+
+- 接入真实电商平台API，实现更广泛的商品覆盖
+- 增加个人消费画像功能，提供更个性化的购买时机建议
+- 拓展至更多消费场景（如机票、酒店等价格波动较大的品类）
+
+---
+
+*本项目为"息壤杯"全国人工智能OPC创新大赛参赛作品，核心逻辑与实现由团队独立完成，开发过程中使用AI工具辅助编码。*
+
